@@ -1,0 +1,11 @@
+---
+date: 2014-02-14 05:25:34+00:00
+layout: post
+title: 利用Google搜索隐秘视频
+categories:
+- web安全
+---
+
+Google真的几近于无所不能，除可以用作强大的黑客工具外，还能用来搜索到成百上千未经加密的Webcam网络摄像头。只要在Google中搜索以下几个关键词中的任何一个:“inurl:”ViewerFrame?Mode=””，“inurl:”MultiCameraFrame?Mode=””，“intitlE:”Live View / – AXIS””，“inurl:”axis-cgi/mjpg””，“intext:”MOBOTIX M1″ intext:”Open Menu””或者“inurl:”view/index.shtml” ”等等，就可以发现非常多的在线视频这就是前几天新闻中讲的，利用GOOGLE可以查看并控制网络中的摄像头只用打开www.google.com关键词为：inurl:”ViewerFrame?Mode=”可以找到很多呵呵。Google的强大搜索功能给人们带来很大方便，而今日传来一条惊人消息：只要输入某些关键字，就可以搜索到网络数千个摄像头的IP地址，通过它们你可以随便查看其所监控的实时影响，而它们确不知情！可以打开Google，在搜索栏中输入关键字”inurl:”ViewerFrame?mode=”"，可以搜索到2060个结果，随便点击几个，会弹出安装IE插件的对话框（不安装就无法在浏览器中观看），完成后就可以看到摄像头实时拍摄的时景了，有不少网民认为这非常爽，足不出户，尽览世界风光…
+
+

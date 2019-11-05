@@ -1,0 +1,258 @@
+---
+date: 2013-12-25 04:20:44+00:00
+title: 密码重置漏洞那点事儿
+categories:
+- web安全
+---
+
+密码重置功能是一些常见漏洞的起因。例如用户名枚举漏洞（数据库中用户名不存在和密码错误显示不同的错误信息），敏感信息泄露（把明文密码通过e-mail发送给用户）重置密码消息劫持（攻击会者接收到密码重置信息）这些都是在密码重置功能中比较常见的漏洞。
+
+
+
+
+**很多开发者都不能真正了解密码重置所能引发的危害，而这个博客文章告诉大家一些不遵守基本安全准则的开发人员所开发的密码重置功能会带来哪些危害。**
+
+
+
+
+举个例子，一个健壮的密码恢重置功能会生成一个令牌，并通过电子邮件发送一个包含令牌的重置密码连接给用户。
+
+
+
+
+**令牌应具有以下特征：**
+
+
+
+
+    
+    <span style="margin:0;padding:0;color:#48484c;" class="pln">包含64个字符或者更多
+    唯一性
+    随机性
+    一次性
+    拥有较短寿命（比如在24小时内到期）</span>
+
+
+
+
+当用户点击该链接时，应用程序必须检查令牌是否有效。  
+如果令牌有效，应用程序必须注销这个令牌，以便它不能被重用，并允许用户更改自己的密码。  
+此外，如果用户试图第二次重置密码，在完成第一次重置过程之前，应用程序必须废止旧的密码重置请求并生成一个新的重置请求。
+
+
+
+
+为了提高安全性，也可以使用双重的用户身份认证（但并不是必须使用）。
+
+
+
+
+比如，要求用户回答之前填写的隐私问题（比如我的大姨妈的名字是神马）或确认发送到用户手机的验证码。
+
+
+
+
+**现在，让我们分析一个真实的并且设计的很糟糕的密码恢复系统，**列举出所有相关的安全漏洞，并尝试编写POC
+
+
+
+
+    
+    <span style="margin:0;padding:0;color:#48484c;" class="pln"> </span><span style="margin:0;padding:0;color:#93a1a1;" class="pun"><?</span><span style="margin:0;padding:0;color:#48484c;" class="pln">php  
+    </span><span style="margin:0;padding:0;color:#195f91;" class="lit">2</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">:</span><span style="margin:0;padding:0;color:#48484c;" class="pln">    
+    </span><span style="margin:0;padding:0;color:#195f91;" class="lit">3</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">:</span><span style="margin:0;padding:0;color:#48484c;" class="pln">  </span><span style="margin:0;padding:0;color:#93a1a1;" class="com">/* generates a new random password */</span><span style="margin:0;padding:0;color:#48484c;" class="pln">  
+    </span><span style="margin:0;padding:0;color:#195f91;" class="lit">4</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">:</span><span style="margin:0;padding:0;color:#48484c;" class="pln">  </span><span style="margin:0;padding:0;color:#1e347b;" class="kwd">function</span><span style="margin:0;padding:0;color:#48484c;" class="pln"> generatePassword</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">()</span><span style="margin:0;padding:0;color:#48484c;" class="pln"> </span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">{</span><span style="margin:0;padding:0;color:#48484c;" class="pln">  
+    </span><span style="margin:0;padding:0;color:#195f91;" class="lit">5</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">:</span><span style="margin:0;padding:0;color:#48484c;" class="pln">       $chars </span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">=</span><span style="margin:0;padding:0;color:#48484c;" class="pln"> array</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">(</span><span style="margin:0;padding:0;color:#dd1144;" class="str">"a"</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">,</span><span style="margin:0;padding:0;color:#dd1144;" class="str">"b"</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">,</span><span style="margin:0;padding:0;color:#dd1144;" class="str">"c"</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">,</span><span style="margin:0;padding:0;color:#dd1144;" class="str">"d"</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">,</span><span style="margin:0;padding:0;color:#dd1144;" class="str">"e"</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">,</span><span style="margin:0;padding:0;color:#dd1144;" class="str">"f"</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">,</span><span style="margin:0;padding:0;color:#dd1144;" class="str">"g"</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">,</span><span style="margin:0;padding:0;color:#dd1144;" class="str">"h"</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">,</span><span style="margin:0;padding:0;color:#dd1144;" class="str">"i"</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">,</span><span style="margin:0;padding:0;color:#dd1144;" class="str">"j"</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">,</span><span style="margin:0;padding:0;color:#dd1144;" class="str">"k"</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">,</span><span style="margin:0;padding:0;color:#dd1144;" class="str">"l"</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">,</span><span style="margin:0;padding:0;color:#dd1144;" class="str">"m"</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">,</span><span style="margin:0;padding:0;color:#dd1144;" class="str">"n"</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">,</span><span style="margin:0;padding:0;color:#dd1144;" class="str">"o"</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">,</span><span style="margin:0;padding:0;color:#dd1144;" class="str">"p"</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">,</span><span style="margin:0;padding:0;color:#dd1144;" class="str">"q"</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">,</span><span style="margin:0;padding:0;color:#dd1144;" class="str">"r"</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">,</span><span style="margin:0;padding:0;color:#dd1144;" class="str">"s"</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">,</span><span style="margin:0;padding:0;color:#dd1144;" class="str">"t"</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">,</span><span style="margin:0;padding:0;color:#dd1144;" class="str">"u"</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">,</span><span style="margin:0;padding:0;color:#dd1144;" class="str">"v"</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">,</span><span style="margin:0;padding:0;color:#dd1144;" class="str">"w"</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">,</span><span style="margin:0;padding:0;color:#dd1144;" class="str">"x"</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">,</span><span style="margin:0;padding:0;color:#dd1144;" class="str">"y"</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">,</span><span style="margin:0;padding:0;color:#dd1144;" class="str">"z"</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">,</span><span style="margin:0;padding:0;color:#dd1144;" class="str">"0"</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">,</span><span style="margin:0;padding:0;color:#dd1144;" class="str">"1"</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">,</span><span style="margin:0;padding:0;color:#dd1144;" class="str">"2"</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">,</span><span style="margin:0;padding:0;color:#dd1144;" class="str">"3"</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">,</span><span style="margin:0;padding:0;color:#dd1144;" class="str">"4"</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">,</span><span style="margin:0;padding:0;color:#dd1144;" class="str">"5"</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">,</span><span style="margin:0;padding:0;color:#dd1144;" class="str">"6"</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">,</span><span style="margin:0;padding:0;color:#dd1144;" class="str">"7"</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">,</span><span style="margin:0;padding:0;color:#dd1144;" class="str">"8"</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">,</span><span style="margin:0;padding:0;color:#dd1144;" class="str">"9"</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">);</span><span style="margin:0;padding:0;color:#48484c;" class="pln">       
+    </span><span style="margin:0;padding:0;color:#195f91;" class="lit">6</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">:</span><span style="margin:0;padding:0;color:#48484c;" class="pln">       </span><span style="margin:0;padding:0;color:#1e347b;" class="kwd">for</span><span style="margin:0;padding:0;color:#48484c;" class="pln"> </span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">(</span><span style="margin:0;padding:0;color:#48484c;" class="pln">$i </span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">=</span><span style="margin:0;padding:0;color:#48484c;" class="pln"> </span><span style="margin:0;padding:0;color:#195f91;" class="lit">0</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">;</span><span style="margin:0;padding:0;color:#48484c;" class="pln"> $i </span><span style="margin:0;padding:0;color:#93a1a1;" class="pun"><</span><span style="margin:0;padding:0;color:#48484c;" class="pln"> </span><span style="margin:0;padding:0;color:#195f91;" class="lit">10</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">;</span><span style="margin:0;padding:0;color:#48484c;" class="pln"> $i</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">++){</span><span style="margin:0;padding:0;color:#48484c;" class="pln">            
+    </span><span style="margin:0;padding:0;color:#195f91;" class="lit">7</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">:</span><span style="margin:0;padding:0;color:#48484c;" class="pln">            $password </span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">.=</span><span style="margin:0;padding:0;color:#48484c;" class="pln"> $chars</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">[</span><span style="margin:0;padding:0;color:#48484c;" class="pln">rand</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">(</span><span style="margin:0;padding:0;color:#195f91;" class="lit">0</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">,</span><span style="margin:0;padding:0;color:#195f91;" class="lit">35</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">)];</span><span style="margin:0;padding:0;color:#48484c;" class="pln">  
+    </span><span style="margin:0;padding:0;color:#195f91;" class="lit">8</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">:</span><span style="margin:0;padding:0;color:#48484c;" class="pln">       </span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">}</span><span style="margin:0;padding:0;color:#48484c;" class="pln">  
+    </span><span style="margin:0;padding:0;color:#195f91;" class="lit">9</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">:</span><span style="margin:0;padding:0;color:#48484c;" class="pln">       </span><span style="margin:0;padding:0;color:#1e347b;" class="kwd">return</span><span style="margin:0;padding:0;color:#48484c;" class="pln"> $password</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">;</span><span style="margin:0;padding:0;color:#48484c;" class="pln">  
+    </span><span style="margin:0;padding:0;color:#195f91;" class="lit">10</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">:</span><span style="margin:0;padding:0;color:#48484c;" class="pln">  </span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">}</span><span style="margin:0;padding:0;color:#48484c;" class="pln">  
+    </span><span style="margin:0;padding:0;color:#195f91;" class="lit">11</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">:</span><span style="margin:0;padding:0;color:#48484c;" class="pln">    
+    </span><span style="margin:0;padding:0;color:#195f91;" class="lit">12</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">:</span><span style="margin:0;padding:0;color:#48484c;" class="pln">  </span><span style="margin:0;padding:0;color:#93a1a1;" class="com">/* send the new password to the user e-mail and update the database */</span><span style="margin:0;padding:0;color:#48484c;" class="pln">  
+    </span><span style="margin:0;padding:0;color:#195f91;" class="lit">13</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">:</span><span style="margin:0;padding:0;color:#48484c;" class="pln">  </span><span style="margin:0;padding:0;color:#1e347b;" class="kwd">if</span><span style="margin:0;padding:0;color:#48484c;" class="pln"> </span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">(</span><span style="margin:0;padding:0;color:#48484c;" class="pln">$_REQUEST</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">[</span><span style="margin:0;padding:0;color:#dd1144;" class="str">'mail'</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">])</span><span style="margin:0;padding:0;color:#48484c;" class="pln"> </span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">{</span><span style="margin:0;padding:0;color:#48484c;" class="pln">       
+    </span><span style="margin:0;padding:0;color:#195f91;" class="lit">14</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">:</span><span style="margin:0;padding:0;color:#48484c;" class="pln">       $con </span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">=</span><span style="margin:0;padding:0;color:#48484c;" class="pln"> </span><span style="margin:0;padding:0;color:#1e347b;" class="kwd">new</span><span style="margin:0;padding:0;color:#48484c;" class="pln"> </span><span style="margin:0;padding:0;color:teal;" class="typ">Connection</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">();</span><span style="margin:0;padding:0;color:#48484c;" class="pln">  
+    </span><span style="margin:0;padding:0;color:#195f91;" class="lit">15</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">:</span><span style="margin:0;padding:0;color:#48484c;" class="pln">       $con</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">-></span><span style="margin:0;padding:0;color:#48484c;" class="pln">sql </span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">=</span><span style="margin:0;padding:0;color:#48484c;" class="pln"> </span><span style="margin:0;padding:0;color:#dd1144;" class="str">"  SELECT usr_user.id,   
+    16:                      usr_user.name,   
+    17:                      usr_user.email,   
+    18:                      usr_user.password  
+    19:                  FROM  usr_user   
+    20:                  WHERE  usr_user.email = '"</span><span style="margin:0;padding:0;color:#48484c;" class="pln"> </span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">.</span><span style="margin:0;padding:0;color:#48484c;" class="pln"> $_REQUEST</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">[</span><span style="margin:0;padding:0;color:#dd1144;" class="str">'mail'</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">]</span><span style="margin:0;padding:0;color:#48484c;" class="pln"> </span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">.</span><span style="margin:0;padding:0;color:#48484c;" class="pln"> </span><span style="margin:0;padding:0;color:#dd1144;" class="str">"'  
+    21:                  ORDER  BY id DESC "</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">;</span><span style="margin:0;padding:0;color:#48484c;" class="pln">  
+    </span><span style="margin:0;padding:0;color:#195f91;" class="lit">22</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">:</span><span style="margin:0;padding:0;color:#48484c;" class="pln">       $res </span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">=</span><span style="margin:0;padding:0;color:#48484c;" class="pln"> $con</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">-></span><span style="margin:0;padding:0;color:#48484c;" class="pln">executeQuery</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">();</span><span style="margin:0;padding:0;color:#48484c;" class="pln">  
+    </span><span style="margin:0;padding:0;color:#195f91;" class="lit">23</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">:</span><span style="margin:0;padding:0;color:#48484c;" class="pln">       </span><span style="margin:0;padding:0;color:#1e347b;" class="kwd">if</span><span style="margin:0;padding:0;color:#48484c;" class="pln"> </span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">(</span><span style="margin:0;padding:0;color:#48484c;" class="pln">is_array</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">(</span><span style="margin:0;padding:0;color:#48484c;" class="pln">$res</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">)){</span><span style="margin:0;padding:0;color:#48484c;" class="pln">  
+    </span><span style="margin:0;padding:0;color:#195f91;" class="lit">24</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">:</span><span style="margin:0;padding:0;color:#48484c;" class="pln">            $usr </span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">=</span><span style="margin:0;padding:0;color:#48484c;" class="pln"> $res</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">[</span><span style="margin:0;padding:0;color:#195f91;" class="lit">0</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">];</span><span style="margin:0;padding:0;color:#48484c;" class="pln">  
+    </span><span style="margin:0;padding:0;color:#195f91;" class="lit">25</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">:</span><span style="margin:0;padding:0;color:#48484c;" class="pln">            $password </span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">=</span><span style="margin:0;padding:0;color:#48484c;" class="pln"> generatePassword</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">();</span><span style="margin:0;padding:0;color:#48484c;" class="pln">  
+    </span><span style="margin:0;padding:0;color:#195f91;" class="lit">26</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">:</span><span style="margin:0;padding:0;color:#48484c;" class="pln">            $con</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">-></span><span style="margin:0;padding:0;color:#48484c;" class="pln">sql </span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">=</span><span style="margin:0;padding:0;color:#48484c;" class="pln"> </span><span style="margin:0;padding:0;color:#dd1144;" class="str">"UPDATE usr_user SET password = MD5(trim('"</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">.</span><span style="margin:0;padding:0;color:#48484c;" class="pln">$password</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">.</span><span style="margin:0;padding:0;color:#dd1144;" class="str">"')) WHERE email = '"</span><span style="margin:0;padding:0;color:#48484c;" class="pln"> </span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">.</span><span style="margin:0;padding:0;color:#48484c;" class="pln"> $_REQUEST</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">[</span><span style="margin:0;padding:0;color:#dd1144;" class="str">'mail'</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">]</span><span style="margin:0;padding:0;color:#48484c;" class="pln"> </span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">.</span><span style="margin:0;padding:0;color:#48484c;" class="pln"> </span><span style="margin:0;padding:0;color:#dd1144;" class="str">"' "</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">;</span><span style="margin:0;padding:0;color:#48484c;" class="pln">  
+    </span><span style="margin:0;padding:0;color:#195f91;" class="lit">27</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">:</span><span style="margin:0;padding:0;color:#48484c;" class="pln">            $con</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">-></span><span style="margin:0;padding:0;color:#48484c;" class="pln">executeQuery</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">();</span><span style="margin:0;padding:0;color:#48484c;" class="pln">  
+    </span><span style="margin:0;padding:0;color:#195f91;" class="lit">28</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">:</span><span style="margin:0;padding:0;color:#48484c;" class="pln">              
+    </span><span style="margin:0;padding:0;color:#195f91;" class="lit">29</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">:</span><span style="margin:0;padding:0;color:#48484c;" class="pln">            </span><span style="margin:0;padding:0;color:#93a1a1;" class="com">/* headers */</span><span style="margin:0;padding:0;color:#48484c;" class="pln">  
+    </span><span style="margin:0;padding:0;color:#195f91;" class="lit">30</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">:</span><span style="margin:0;padding:0;color:#48484c;" class="pln">            $headers </span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">=</span><span style="margin:0;padding:0;color:#48484c;" class="pln"> </span><span style="margin:0;padding:0;color:#dd1144;" class="str">"MIME-Version: 1.0rn"</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">;</span><span style="margin:0;padding:0;color:#48484c;" class="pln">  
+    </span><span style="margin:0;padding:0;color:#195f91;" class="lit">31</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">:</span><span style="margin:0;padding:0;color:#48484c;" class="pln">            $headers </span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">.=</span><span style="margin:0;padding:0;color:#48484c;" class="pln"> </span><span style="margin:0;padding:0;color:#dd1144;" class="str">"Content-type: text/html; charset=iso-8859-1rn"</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">;</span><span style="margin:0;padding:0;color:#48484c;" class="pln">  
+    </span><span style="margin:0;padding:0;color:#195f91;" class="lit">32</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">:</span><span style="margin:0;padding:0;color:#48484c;" class="pln">    
+    </span><span style="margin:0;padding:0;color:#195f91;" class="lit">33</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">:</span><span style="margin:0;padding:0;color:#48484c;" class="pln">            </span><span style="margin:0;padding:0;color:#93a1a1;" class="com">/* aditional headers */</span><span style="margin:0;padding:0;color:#48484c;" class="pln">  
+    </span><span style="margin:0;padding:0;color:#195f91;" class="lit">34</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">:</span><span style="margin:0;padding:0;color:#48484c;" class="pln">            $headers </span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">.=</span><span style="margin:0;padding:0;color:#48484c;" class="pln"> </span><span style="margin:0;padding:0;color:#dd1144;" class="str">"To: "</span><span style="margin:0;padding:0;color:#48484c;" class="pln"> </span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">.</span><span style="margin:0;padding:0;color:#48484c;" class="pln"> $usr</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">-></span><span style="margin:0;padding:0;color:#48484c;" class="pln">name </span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">.</span><span style="margin:0;padding:0;color:#48484c;" class="pln"> </span><span style="margin:0;padding:0;color:#dd1144;" class="str">" <"</span><span style="margin:0;padding:0;color:#48484c;" class="pln"> </span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">.=</span><span style="margin:0;padding:0;color:#dd1144;" class="str">""</span><span style="margin:0;padding:0;color:#48484c;" class="pln"> </span><span style="margin:0;padding:0;color:#195f91;" class="lit">35</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">:=</span><span style="margin:0;padding:0;color:#dd1144;" class="str">""</span><span style="margin:0;padding:0;color:#48484c;" class="pln"> headers</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">=</span><span style="margin:0;padding:0;color:#dd1144;" class="str">""</span><span style="margin:0;padding:0;color:#48484c;" class="pln"> </span><span style="margin:0;padding:0;color:#195f91;" class="lit">36</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">:=</span><span style="margin:0;padding:0;color:#dd1144;" class="str">""</span><span style="margin:0;padding:0;color:#48484c;" class="pln"> </span><span style="margin:0;padding:0;color:#195f91;" class="lit">37</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">:=</span><span style="margin:0;padding:0;color:#dd1144;" class="str">""</span><span style="margin:0;padding:0;color:#48484c;" class="pln"> message</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">=</span><span style="margin:0;padding:0;color:#dd1144;" class="str">""</span><span style="margin:0;padding:0;color:#48484c;" class="pln"> body</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">=</span><span style="margin:0;padding:0;color:#dd1144;" class="str">""</span><span style="margin:0;padding:0;color:#48484c;" class="pln"> </span><span style="margin:0;padding:0;color:#195f91;" class="lit">38</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">:=</span><span style="margin:0;padding:0;color:#dd1144;" class="str">""</span><span style="margin:0;padding:0;color:#48484c;" class="pln"> html</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">=</span><span style="margin:0;padding:0;color:#dd1144;" class="str">""</span><span style="margin:0;padding:0;color:#48484c;" class="pln"> </span><span style="margin:0;padding:0;color:#195f91;" class="lit">39</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">:=</span><span style="margin:0;padding:0;color:#dd1144;" class="str">""</span><span style="margin:0;padding:0;color:#48484c;" class="pln"> usr</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">-=</span><span style="margin:0;padding:0;color:#dd1144;" class="str">""</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">></span><span style="margin:0;padding:0;color:#48484c;" class="pln">name </span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">.</span><span style="margin:0;padding:0;color:#48484c;" class="pln"> </span><span style="margin:0;padding:0;color:#dd1144;" class="str">''</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">;</span><span style="margin:0;padding:0;color:#48484c;" class="pln">  
+    </span><span style="margin:0;padding:0;color:#195f91;" class="lit">40</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">:</span><span style="margin:0;padding:0;color:#48484c;" class="pln">            $html </span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">.=</span><span style="margin:0;padding:0;color:#48484c;" class="pln"> </span><span style="margin:0;padding:0;color:#dd1144;" class="str">''</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">;</span><span style="margin:0;padding:0;color:#48484c;" class="pln">  
+    </span><span style="margin:0;padding:0;color:#195f91;" class="lit">41</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">:</span><span style="margin:0;padding:0;color:#48484c;" class="pln">            $html </span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">.=</span><span style="margin:0;padding:0;color:#48484c;" class="pln"> </span><span style="margin:0;padding:0;color:#dd1144;" class="str">''</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">;</span><span style="margin:0;padding:0;color:#48484c;" class="pln">  
+    </span><span style="margin:0;padding:0;color:#195f91;" class="lit">42</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">:</span><span style="margin:0;padding:0;color:#48484c;" class="pln">            $html </span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">.=</span><span style="margin:0;padding:0;color:#48484c;" class="pln"> </span><span style="margin:0;padding:0;color:#dd1144;" class="str">'
+    '</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">;</span><span style="margin:0;padding:0;color:#48484c;" class="pln">  
+    </span><span style="margin:0;padding:0;color:#195f91;" class="lit">43</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">:</span><span style="margin:0;padding:0;color:#48484c;" class="pln">            $html </span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">.=</span><span style="margin:0;padding:0;color:#48484c;" class="pln"> </span><span style="margin:0;padding:0;color:#dd1144;" class="str">''</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">;</span><span style="margin:0;padding:0;color:#48484c;" class="pln">  
+    </span><span style="margin:0;padding:0;color:#195f91;" class="lit">44</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">:</span><span style="margin:0;padding:0;color:#48484c;" class="pln">         
+    </span><span style="margin:0;padding:0;color:#195f91;" class="lit">45</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">:</span><span style="margin:0;padding:0;color:#48484c;" class="pln">            </span><span style="margin:0;padding:0;color:#93a1a1;" class="com">/* Send e-mail to user with his new password  
+    46:            if (mail($_REQUEST['mail'], "Your new administrative password", $html, $headers)){  
+    47:                 $message = "Your new password was sent to: " . $_REQUEST['mail'];  
+    48:                 $success = true;  
+    49:            }  
+    50:       } else {            
+    51:            $message = "The provided e-mail is invalid";  
+    52:            $success = false;  
+    53:       }  
+    54:         
+    55:  }  
+    56:    
+    57:  </span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">?></span>
+
+
+
+
+**（1）用户名枚举**
+
+
+
+
+最明显的漏洞就是用户名枚举漏洞，用户提交一个邮箱地址，如果邮箱存在那么，系统会返回一条信息
+
+
+
+
+    
+    <span style="margin:0;padding:0;color:#48484c;" class="pln">"Your new password has been sent to: LanLan@wyl.com"</span>
+
+
+
+
+如果该邮箱没有被人注册，那么系统将返回
+
+
+
+
+    
+    <span style="margin:0;padding:0;color:#48484c;" class="pln">"The provided e-mail is invalid"</span>
+
+
+
+
+**（2）拒绝服务**
+
+
+
+
+第二个漏洞应该是拒绝服务
+
+
+
+
+这个系统中有一个生成随机密码的函数，攻击者可以编写一个脚本来不断尝试重置密码过程（原文中给出15秒每次，怀疑频率是否有点低）
+
+
+
+
+另外，如果配合用户名枚举漏洞的话，这个漏洞会产生更大的危害，可以用来更改任意用户的密码。（虽然你收不到该密码，但也可以给用户产生不小的麻烦）
+
+
+
+
+**（3）敏感信息泄露**
+
+
+
+
+第三个漏洞是敏感信息泄露，因为该系统使用明文把密码通过邮件发送给用户，并且没有在用户下次登录的时候
+
+
+
+
+强制用户修改密码。如果攻击者获取了用户的邮件信息（其实这个也不算特别容易），就可以通过邮件中的密码登录系统。
+
+
+
+
+**（4）SQL 注入**
+
+
+
+
+第四个注入漏洞也比较明显，用户提交的数据没有经过过滤直接代入查询语句，利用方式也有很多种。这样构造可以改掉所有用户的密码，也可以用来造成拒绝服务攻击。
+
+
+
+
+    
+    <span style="margin:0;padding:0;color:#48484c;" class="pln">Input: ’ or 1=1%23
+    First SQL becomes (Line 15): SELECT usr_user.id, usr_user.name, usr_user.email, usr_user.password FROM usr_user WHERE usr_user.email = ’’ or 1=1#’ ORDER   BY id DESC
+    Second SQL becomes (Line 26): UPDATE usr_user SET password = MD5(trim(‘xxxxxxxxxx’)) WHERE email like ’’ or 1=1#’</span>
+
+
+
+
+这个注入点还可以用来进行盲注来猜测一些敏感信息。
+
+
+
+
+**（5）跨站脚本漏洞**
+
+
+
+
+第五个漏洞也可以很明显的找到，用户输入的mail参数被带入到了邮件内容中（没有经过任何过滤），这个漏洞的利用需要配合
+
+
+
+
+SQL 注入漏洞来使用
+
+
+
+
+    
+    <span style="margin:0;padding:0;color:#48484c;" class="pln">User Input: ’ or 1=1%23</span><span style="margin:0;padding:0;" class="tag"><script></span><span style="margin:0;padding:0;color:#48484c;" class="pln">alert</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">(</span><span style="margin:0;padding:0;color:#195f91;" class="lit">1</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">)</span><span style="margin:0;padding:0;" class="tag"></script></span><span style="margin:0;padding:0;color:#48484c;" class="pln">
+    First SQL becomes (Line 15): SELECT usr_user.id, usr_user.name, usr_user.email, usr_user.password FROM usr_user WHERE usr_user.email = ’’ or 1=1#</span><span style="margin:0;padding:0;" class="tag"><script></span><span style="margin:0;padding:0;color:#48484c;" class="pln">alert</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">(</span><span style="margin:0;padding:0;color:#195f91;" class="lit">1</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">)</span><span style="margin:0;padding:0;" class="tag"></script></span><span style="margin:0;padding:0;color:#48484c;" class="pln">‘ ORDER   BY id DESC
+    Second SQL becomes (Line 26): UPDATE usr_user SET password = MD5(trim(‘xxxxxxxxxx’)) WHERE email like ’’ or 1=1#</span><span style="margin:0;padding:0;" class="tag"><script></span><span style="margin:0;padding:0;color:#48484c;" class="pln">alert</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">(</span><span style="margin:0;padding:0;color:#195f91;" class="lit">1</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">)</span><span style="margin:0;padding:0;" class="tag"></script></span><span style="margin:0;padding:0;color:#48484c;" class="pln">‘
+    Response Message (Line 47): Your new password was sent to: ’ or 1=1#</span><span style="margin:0;padding:0;" class="tag"><script></span><span style="margin:0;padding:0;color:#48484c;" class="pln">alert</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">(</span><span style="margin:0;padding:0;color:#195f91;" class="lit">1</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">)</span><span style="margin:0;padding:0;" class="tag"></script></span>
+
+
+
+
+提交上述数据，系统首先会修改所有用户的密码，然后给所有用户发送包含恶意脚本的文件
+
+
+
+
+**（6）密码重置信息劫持**
+
+
+
+
+最后一个漏洞是密码重置信息劫持，也是危害比较严重的漏洞。产生原因是，用户提交数据mail（又是这货）被包含到了MIME头中，这个漏洞的利用同样需要配合SQL注入：
+
+
+
+
+    
+    <span style="margin:0;padding:0;color:#48484c;" class="pln">User Input: LanLan@wyl.com%00’ or 1=1%23
+    First SQL becomes (Line 15): SELECT usr_user.id, usr_user.name, usr_user.email, usr_user.password FROM usr_user WHERE usr_user.email = ’LanLan@wyl.com[null byte char]’ or 1=1#’ ORDER   BY id DESC 
+    Second SQL becomes (Line 26): UPDATE usr_user SET password = MD5(trim(‘xxxxxxxxxx’)) WHERE email like ’LanLan@wyl.com[null byte char]’ or 1=1#’
+    MIME Header becomes (Line 34): To: John Smith </span><span style="margin:0;padding:0;" class="tag"><LanLan</span><span style="margin:0;padding:0;color:#48484c;" class="pln">@</span><span style="margin:0;padding:0;color:teal;" class="atn">wyl</span><span style="margin:0;padding:0;color:#48484c;" class="pln">.</span><span style="margin:0;padding:0;color:teal;" class="atn">com</span><span style="margin:0;padding:0;color:#48484c;" class="pln">[</span><span style="margin:0;padding:0;color:teal;" class="atn">null</span><span style="margin:0;padding:0;color:#48484c;" class="pln"> </span><span style="margin:0;padding:0;color:teal;" class="atn">byte</span><span style="margin:0;padding:0;color:#48484c;" class="pln"> </span><span style="margin:0;padding:0;color:teal;" class="atn">char</span><span style="margin:0;padding:0;color:#48484c;" class="pln">]’ </span><span style="margin:0;padding:0;color:teal;" class="atn">or</span><span style="margin:0;padding:0;color:#48484c;" class="pln"> 1</span><span style="margin:0;padding:0;color:#93a1a1;" class="pun">=</span><span style="margin:0;padding:0;color:#dd1144;" class="atv">1#</span><span style="margin:0;padding:0;" class="tag">></span>
+
+
+
+
+执行上面的代码的结果就是所用用户密码被修改，修改后的邮件会被发送到LanLan@wyl.com，这里[null byte char]会截断mini头中的信息
+
+
+
+
+最近Freebuf上发过一个邮件注入的帖子，感觉可以在这种情况下加以利用），但是我觉得在很多数据库中[null byte char]也会截断查询，这里没有进行测试，有兴趣的同学可以测试一下   
+Hope you enjoy! ![:-)](http://fbt.02753.com/images/smilies/icon_smile.gif)   
+原文地址：[http://www.freebuf.com/articles/web/21214.html](http://www.freebuf.com/articles/web/21214.html)
