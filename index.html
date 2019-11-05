@@ -1,15 +1,5 @@
 ---
-layout: default
-description: a2019 Blog
-keywords: a2019
+layout: home
+# articles:
+#   excerpt_type: html
 ---
-
-<div class="postlist">
-    {% for post in paginator.posts %}
-    <div class="overview">
-        <div class="date">{{ post.date | date: "%b %d, %Y" }}</div>
-        <div class="detail"><a href="{{ site.url }}{{ post.url }}">{{ post.title }}</a></div>
-    </div>
-    {% endfor %}
-</div>
-{% include pagination.html %}
